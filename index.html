@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Merger</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background-color: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .file-list {
+            min-height: 100px;
+            border: 2px dashed #ccc;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 20px;
+            background-color: white;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        .page {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: center;
+            cursor: move;
+            background: white;
+        }
+        canvas {
+            max-width: 100%;
+            height: auto;
+        }
+        .page.selected {
+            outline: 2px solid #4CAF50;
+        }
+        .page-number {
+            margin-top: 5px;
+            color: #666;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px;
+        }
+        .remove-file {
+            cursor: pointer;
+            color: #666;
+            padding: 5px 10px;
+        }
+        .remove-file:hover {
+            color: #ff0000;
+        }
+        .progress {
+            margin-top: 10px;
+            display: none;
+        }
+        .controls {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Modify PDF online</h1>
+        <input type="file" id="pdfInput" accept=".pdf" multiple>
+        <div class="file-list" id="fileList"></div>
+        <div class="controls">
+            <button id="mergeButton" disabled>Modify PDFs</button>
+            <button id="downloadBtn" style="display: none;">Download PDF</button>
+        </div>
+        <div class="progress" id="progress">Merging PDFs...</div>
+        <div class="grid" id="pagesGrid"></div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        
+        const fileInput = document.getElementById('pdfInput');
+        const fileList = document.getElementById('fileList');
+        const pagesGrid = document.getElementById('pagesGrid');
+        const mergeButton = document.getElementById('mergeButton');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const progress = document.getElementById('progress');
+        
+        let selectedFiles = [];
+        let pageOrder = [];
+
+        new Sortable(pagesGrid, {
+            animation: 150,
+            onEnd: function() {
+                updatePageOrder();
+            }
+        });
+
+        function updatePageOrder() {
+            const pages = pagesGrid.querySelectorAll('.page');
+            pageOrder = Array.from(pages).map(page => ({
+                fileIndex: parseInt(page.dataset.fileIndex),
+                pageIndex: parseInt(page.dataset.pageIndex)
+            }));
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            const newFiles = Array.from(e.target.files);
+            selectedFiles = [...selectedFiles, ...newFiles];
+            updateFileList();
+            mergeButton.disabled = selectedFiles.length < 1;
+        });
+
+        function updateFileList() {
+            fileList.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <span>${file.name}</span>
+                    <span class="remove-file">×</span>
+                `;
+                
+                const removeButton = fileItem.querySelector('.remove-file');
+                removeButton.addEventListener('click', () => {
+                    selectedFiles.splice(index, 1);
+                    updateFileList();
+                    mergeButton.disabled = selectedFiles.length < 1;
+                });
+                
+                fileList.appendChild(fileItem);
+            });
+        }
+
+        mergeButton.addEventListener('click', async () => {
+            try {
+                progress.style.display = 'block';
+                mergeButton.disabled = true;
+                pagesGrid.innerHTML = '';
+                let pageCount = 0;
+                
+                pagesGrid.tabIndex = 0;
+                let lastSelectedPage = null;
+                let selectedPages = new Set();
+
+                function selectPage(pageDiv, addToSelection = false) {
+                    if (!addToSelection) {
+                        selectedPages.forEach(p => p.classList.remove('selected'));
+                        selectedPages.clear();
+                    }
+                    pageDiv.classList.add('selected');
+                    selectedPages.add(pageDiv);
+                    lastSelectedPage = pageDiv;
+                }
+
+                pagesGrid.addEventListener('click', (e) => {
+                    const pageDiv = e.target.closest('.page');
+                    if (!pageDiv) return;
+
+                    if (e.ctrlKey || e.metaKey) {
+                        if (selectedPages.has(pageDiv)) {
+                            pageDiv.classList.remove('selected');
+                            selectedPages.delete(pageDiv);
+                        } else {
+                            selectPage(pageDiv, true);
+                        }
+                    } else if (e.shiftKey && lastSelectedPage) {
+                        const pages = Array.from(document.querySelectorAll('.page'));
+                        const start = pages.indexOf(lastSelectedPage);
+                        const end = pages.indexOf(pageDiv);
+                        const range = pages.slice(
+                            Math.min(start, end),
+                            Math.max(start, end) + 1
+                        );
+                        selectedPages.forEach(p => p.classList.remove('selected'));
+                        selectedPages.clear();
+                        range.forEach(p => {
+                            p.classList.add('selected');
+                            selectedPages.add(p);
+                        });
+                    } else {
+                        selectPage(pageDiv);
+                    }
+                });
+
+                pagesGrid.addEventListener('keydown', (e) => {
+                    if (e.key === 'Backspace' || e.key === 'Delete') {
+                        selectedPages.forEach(page => page.remove());
+                        selectedPages.clear();
+                        updatePageOrder();
+                        document.querySelectorAll('.page-number').forEach((numDiv, idx) => {
+                            numDiv.textContent = `Page ${idx + 1}`;
+                        });
+                    }
+                });
+
+                for (let fileIndex = 0; fileIndex < selectedFiles.length; fileIndex++) {
+                    const file = selectedFiles[fileIndex];
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+
+                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                        const page = await pdf.getPage(pageNum);
+                        const viewport = page.getViewport({ scale: 1 });
+                        
+                        const pageDiv = document.createElement('div');
+                        pageDiv.className = 'page';
+                        pageDiv.tabIndex = 0;
+                        pageDiv.dataset.fileIndex = fileIndex;
+                        pageDiv.dataset.pageIndex = pageNum - 1;
+                        
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        
+                        const scale = 200 / viewport.width;
+                        const scaledViewport = page.getViewport({ scale });
+                        
+                        canvas.width = scaledViewport.width;
+                        canvas.height = scaledViewport.height;
+
+                        await page.render({
+                            canvasContext: context,
+                            viewport: scaledViewport
+                        }).promise;
+
+                        const pageNumber = document.createElement('div');
+                        pageNumber.className = 'page-number';
+                        pageNumber.textContent = `Page ${++pageCount}`;
+
+                        pageDiv.appendChild(canvas);
+                        pageDiv.appendChild(pageNumber);
+                        pagesGrid.appendChild(pageDiv);
+                    }
+                }
+
+                updatePageOrder();
+                downloadBtn.style.display = 'inline-block';
+
+            } catch (error) {
+                console.error('Error loading PDFs:', error);
+                alert('Error loading PDFs. Please try again.');
+            } finally {
+                progress.style.display = 'none';
+                mergeButton.disabled = false;
+            }
+        });
+
+        downloadBtn.addEventListener('click', async () => {
+            try {
+                downloadBtn.disabled = true;
+                const newPdf = await PDFLib.PDFDocument.create();
+                
+                for (const { fileIndex, pageIndex } of pageOrder) {
+                    const fileData = await selectedFiles[fileIndex].arrayBuffer();
+                    const pdfDoc = await PDFLib.PDFDocument.load(fileData);
+                    const [copiedPage] = await newPdf.copyPages(pdfDoc, [pageIndex]);
+                    newPdf.addPage(copiedPage);
+                }
+
+                const pdfBytes = await newPdf.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'merged.pdf';
+                link.click();
+                URL.revokeObjectURL(url);
+            } catch (error) {
+                console.error('Error creating PDF:', error);
+                alert('Error creating PDF. Please try again.');
+            } finally {
+                downloadBtn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
