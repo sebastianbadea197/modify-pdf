@@ -1,6 +1,9 @@
-# Pdf file viewer
+# Pdf File Viewer
 
 Just a small tool to handle multiple pdf files entirely from the browser.
+
+# Link to the page:
+[PDF File Viewer](https://sebastianbadea197.github.io/modify-pdf/)
 
 # Current functionaliy:
 
