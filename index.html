@@ -80,6 +80,19 @@
         .controls {
             margin-top: 10px;
         }
+        .github-link {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+        }
+        .github-link img {
+            width: 32px;
+            height: 32px;
+            transition: transform 0.2s;
+        }
+        .github-link img:hover {
+            transform: scale(1.1);
+        }
     </style>
 </head>
 <body>
@@ -94,6 +107,10 @@
         <div class="progress" id="progress">Merging PDFs...</div>
         <div class="grid" id="pagesGrid"></div>
     </div>
+    
+    <a href="https://github.com/sebastianbadea197/modify-pdf" class="github-link" target="_blank">
+        <img src="https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/svg/mark-github.svg" alt="GitHub">
+    </a>
 
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
