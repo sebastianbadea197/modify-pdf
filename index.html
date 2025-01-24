@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PDF Merger</title>
+    <title>PDF & Image Merger</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.0/Sortable.min.js"></script>
@@ -93,21 +93,25 @@
         .github-link img:hover {
             transform: scale(1.1);
         }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Modify PDF online</h1>
-        <input type="file" id="pdfInput" accept=".pdf" multiple>
+        <h1>Modify PDF & Images online</h1>
+        <input type="file" id="fileInput" accept=".pdf,.png,.jpg,.jpeg" multiple>
         <div class="file-list" id="fileList"></div>
         <div class="controls">
-            <button id="mergeButton" disabled>Modify PDFs</button>
+            <button id="mergeButton" disabled>Display Documents</button>
             <button id="downloadBtn" style="display: none;">Download PDF</button>
         </div>
-        <div class="progress" id="progress">Merging PDFs...</div>
+        <div class="progress" id="progress">Processing files...</div>
         <div class="grid" id="pagesGrid"></div>
     </div>
-    
+
     <a href="https://github.com/sebastianbadea197/modify-pdf" class="github-link" target="_blank">
         <img src="https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/svg/mark-github.svg" alt="GitHub">
     </a>
@@ -115,7 +119,7 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         
-        const fileInput = document.getElementById('pdfInput');
+        const fileInput = document.getElementById('fileInput');
         const fileList = document.getElementById('fileList');
         const pagesGrid = document.getElementById('pagesGrid');
         const mergeButton = document.getElementById('mergeButton');
@@ -124,6 +128,59 @@
         
         let selectedFiles = [];
         let pageOrder = [];
+        let lastSelectedPage = null;
+        let selectedPages = new Set();
+
+        function selectPage(pageDiv, addToSelection = false) {
+            if (!addToSelection) {
+                selectedPages.forEach(p => p.classList.remove('selected'));
+                selectedPages.clear();
+            }
+            pageDiv.classList.add('selected');
+            selectedPages.add(pageDiv);
+            lastSelectedPage = pageDiv;
+        }
+
+        pagesGrid.addEventListener('click', (e) => {
+            const pageDiv = e.target.closest('.page');
+            if (!pageDiv) return;
+
+            if (e.ctrlKey || e.metaKey) {
+                if (selectedPages.has(pageDiv)) {
+                    pageDiv.classList.remove('selected');
+                    selectedPages.delete(pageDiv);
+                } else {
+                    selectPage(pageDiv, true);
+                }
+            } else if (e.shiftKey && lastSelectedPage) {
+                const pages = Array.from(document.querySelectorAll('.page'));
+                const start = pages.indexOf(lastSelectedPage);
+                const end = pages.indexOf(pageDiv);
+                const range = pages.slice(
+                    Math.min(start, end),
+                    Math.max(start, end) + 1
+                );
+                selectedPages.forEach(p => p.classList.remove('selected'));
+                selectedPages.clear();
+                range.forEach(p => {
+                    p.classList.add('selected');
+                    selectedPages.add(p);
+                });
+            } else {
+                selectPage(pageDiv);
+            }
+        });
+
+        pagesGrid.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' || e.key === 'Delete') {
+                selectedPages.forEach(page => page.remove());
+                selectedPages.clear();
+                updatePageOrder();
+                document.querySelectorAll('.page-number').forEach((numDiv, idx) => {
+                    numDiv.textContent = `Page ${idx + 1}`;
+                });
+            }
+        });
 
         new Sortable(pagesGrid, {
             animation: 150,
@@ -140,8 +197,51 @@
             }));
         }
 
+        async function processImage(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        const maxDim = 2000;
+                        let width = img.width;
+                        let height = img.height;
+                        
+                        if (width > maxDim || height > maxDim) {
+                            if (width > height) {
+                                height = (height / width) * maxDim;
+                                width = maxDim;
+                            } else {
+                                width = (width / height) * maxDim;
+                                height = maxDim;
+                            }
+                        }
+                        
+                        canvas.width = width;
+                        canvas.height = height;
+                        ctx.drawImage(img, 0, 0, width, height);
+                        
+                        resolve({
+                            canvas,
+                            width,
+                            height,
+                            dataUrl: canvas.toDataURL('image/jpeg', 0.9)
+                        });
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            });
+        }
+
         fileInput.addEventListener('change', (e) => {
-            const newFiles = Array.from(e.target.files);
+            const newFiles = Array.from(e.target.files).filter(file => {
+                const type = file.type.toLowerCase();
+                return type === 'application/pdf' || type.startsWith('image/');
+            });
             selectedFiles = [...selectedFiles, ...newFiles];
             updateFileList();
             mergeButton.disabled = selectedFiles.length < 1;
@@ -176,88 +276,68 @@
                 let pageCount = 0;
                 
                 pagesGrid.tabIndex = 0;
-                let lastSelectedPage = null;
-                let selectedPages = new Set();
-
-                function selectPage(pageDiv, addToSelection = false) {
-                    if (!addToSelection) {
-                        selectedPages.forEach(p => p.classList.remove('selected'));
-                        selectedPages.clear();
-                    }
-                    pageDiv.classList.add('selected');
-                    selectedPages.add(pageDiv);
-                    lastSelectedPage = pageDiv;
-                }
-
-                pagesGrid.addEventListener('click', (e) => {
-                    const pageDiv = e.target.closest('.page');
-                    if (!pageDiv) return;
-
-                    if (e.ctrlKey || e.metaKey) {
-                        if (selectedPages.has(pageDiv)) {
-                            pageDiv.classList.remove('selected');
-                            selectedPages.delete(pageDiv);
-                        } else {
-                            selectPage(pageDiv, true);
-                        }
-                    } else if (e.shiftKey && lastSelectedPage) {
-                        const pages = Array.from(document.querySelectorAll('.page'));
-                        const start = pages.indexOf(lastSelectedPage);
-                        const end = pages.indexOf(pageDiv);
-                        const range = pages.slice(
-                            Math.min(start, end),
-                            Math.max(start, end) + 1
-                        );
-                        selectedPages.forEach(p => p.classList.remove('selected'));
-                        selectedPages.clear();
-                        range.forEach(p => {
-                            p.classList.add('selected');
-                            selectedPages.add(p);
-                        });
-                    } else {
-                        selectPage(pageDiv);
-                    }
-                });
-
-                pagesGrid.addEventListener('keydown', (e) => {
-                    if (e.key === 'Backspace' || e.key === 'Delete') {
-                        selectedPages.forEach(page => page.remove());
-                        selectedPages.clear();
-                        updatePageOrder();
-                        document.querySelectorAll('.page-number').forEach((numDiv, idx) => {
-                            numDiv.textContent = `Page ${idx + 1}`;
-                        });
-                    }
-                });
 
                 for (let fileIndex = 0; fileIndex < selectedFiles.length; fileIndex++) {
                     const file = selectedFiles[fileIndex];
-                    const arrayBuffer = await file.arrayBuffer();
-                    const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                    const fileType = file.type.toLowerCase();
 
-                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-                        const page = await pdf.getPage(pageNum);
-                        const viewport = page.getViewport({ scale: 1 });
+                    if (fileType === 'application/pdf') {
+                        const arrayBuffer = await file.arrayBuffer();
+                        const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+
+                        for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                            const page = await pdf.getPage(pageNum);
+                            const viewport = page.getViewport({ scale: 1 });
+                            
+                            const pageDiv = document.createElement('div');
+                            pageDiv.className = 'page';
+                            pageDiv.dataset.fileIndex = fileIndex;
+                            pageDiv.dataset.pageIndex = pageNum - 1;
+                            pageDiv.dataset.type = 'pdf';
+                            
+                            const canvas = document.createElement('canvas');
+                            const context = canvas.getContext('2d');
+                            
+                            const scale = 200 / viewport.width;
+                            const scaledViewport = page.getViewport({ scale });
+                            
+                            canvas.width = scaledViewport.width;
+                            canvas.height = scaledViewport.height;
+
+                            await page.render({
+                                canvasContext: context,
+                                viewport: scaledViewport
+                            }).promise;
+
+                            const pageNumber = document.createElement('div');
+                            pageNumber.className = 'page-number';
+                            pageNumber.textContent = `Page ${++pageCount}`;
+
+                            pageDiv.appendChild(canvas);
+                            pageDiv.appendChild(pageNumber);
+                            pagesGrid.appendChild(pageDiv);
+                        }
+                    } else if (fileType.startsWith('image/')) {
+                        const imageData = await processImage(file);
                         
                         const pageDiv = document.createElement('div');
                         pageDiv.className = 'page';
-                        pageDiv.tabIndex = 0;
                         pageDiv.dataset.fileIndex = fileIndex;
-                        pageDiv.dataset.pageIndex = pageNum - 1;
+                        pageDiv.dataset.pageIndex = 0;
+                        pageDiv.dataset.type = 'image';
                         
                         const canvas = document.createElement('canvas');
                         const context = canvas.getContext('2d');
+                        const scale = 200 / imageData.width;
                         
-                        const scale = 200 / viewport.width;
-                        const scaledViewport = page.getViewport({ scale });
+                        canvas.width = imageData.width * scale;
+                        canvas.height = imageData.height * scale;
                         
-                        canvas.width = scaledViewport.width;
-                        canvas.height = scaledViewport.height;
-
-                        await page.render({
-                            canvasContext: context,
-                            viewport: scaledViewport
-                        }).promise;
+                        const img = new Image();
+                        img.onload = () => {
+                            context.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        };
+                        img.src = imageData.dataUrl;
 
                         const pageNumber = document.createElement('div');
                         pageNumber.className = 'page-number';
@@ -273,8 +353,8 @@
                 downloadBtn.style.display = 'inline-block';
 
             } catch (error) {
-                console.error('Error loading PDFs:', error);
-                alert('Error loading PDFs. Please try again.');
+                console.error('Error processing files:', error);
+                alert('Error processing files. Please try again.');
             } finally {
                 progress.style.display = 'none';
                 mergeButton.disabled = false;
@@ -284,13 +364,30 @@
         downloadBtn.addEventListener('click', async () => {
             try {
                 downloadBtn.disabled = true;
+                progress.style.display = 'block';
                 const newPdf = await PDFLib.PDFDocument.create();
                 
                 for (const { fileIndex, pageIndex } of pageOrder) {
-                    const fileData = await selectedFiles[fileIndex].arrayBuffer();
-                    const pdfDoc = await PDFLib.PDFDocument.load(fileData);
-                    const [copiedPage] = await newPdf.copyPages(pdfDoc, [pageIndex]);
-                    newPdf.addPage(copiedPage);
+                    const file = selectedFiles[fileIndex];
+                    const fileType = file.type.toLowerCase();
+
+                    if (fileType === 'application/pdf') {
+                        const fileData = await file.arrayBuffer();
+                        const pdfDoc = await PDFLib.PDFDocument.load(fileData);
+                        const [copiedPage] = await newPdf.copyPages(pdfDoc, [pageIndex]);
+                        newPdf.addPage(copiedPage);
+                    } else if (fileType.startsWith('image/')) {
+                        const imageData = await processImage(file);
+                        const img = await newPdf.embedJpg(await (await fetch(imageData.dataUrl)).arrayBuffer());
+                        
+                        const page = newPdf.addPage([imageData.width, imageData.height]);
+                        page.drawImage(img, {
+                            x: 0,
+                            y: 0,
+                            width: imageData.width,
+                            height: imageData.height
+                        });
+                    }
                 }
 
                 const pdfBytes = await newPdf.save();
@@ -306,6 +403,7 @@
                 alert('Error creating PDF. Please try again.');
             } finally {
                 downloadBtn.disabled = false;
+                progress.style.display = 'none';
             }
         });
     </script>
