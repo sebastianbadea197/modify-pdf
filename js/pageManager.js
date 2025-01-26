@@ -9,6 +9,12 @@ class PageManager {
     }
 
     setupEventListeners() {
+        this.container.addEventListener('mousedown', (e) => {
+            // Prevent grid selection if clicking outside pages
+            if (!e.target.closest('.page')) {
+                e.preventDefault();
+            }
+        });
         this.container.addEventListener('click', this.handleClick.bind(this));
         this.container.addEventListener('keydown', this.handleKeydown.bind(this));
         this.container.tabIndex = 0;
@@ -69,6 +75,7 @@ class PageManager {
 
     handleKeydown(e) {
         if ((e.key === 'Delete' || e.key === 'Backspace') && this.selectedPages.size > 0) {
+            e.preventDefault();
             this.deleteSelectedPages();
         }
     }
