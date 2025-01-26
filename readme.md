@@ -11,7 +11,9 @@ Just a small tool to handle multiple pdf files entirely from the browser.
 2. reorder the pages
 3. delete multiple pages at the same time
 4. download the resulting pdf
+5. convert pictures to pdf
 
 # TODO:
 
-1. Add functionality to convert different file extensions to PDF and vice-versa(?)
+1. add drag-and-drop functionality
+2. rotate, crop (?) functionality
