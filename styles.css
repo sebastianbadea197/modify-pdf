@@ -136,6 +136,22 @@ button:disabled {
     -ms-user-select: text;
 }
 
+.file-list {
+    min-height: 120px;
+    border: 2px dashed #dee2e6;
+    border-radius: 8px;
+    padding: 1rem;
+    margin: 1rem 0;
+    background-color: #fff;
+    transition: all 0.3s ease;
+}
+
+.file-list.drag-over {
+    border-color: #4CAF50;
+    background-color: #f0f9f0;
+    transform: scale(1.02);
+}
+
 .footer {
     text-align: center;
     padding: 2rem 0;
