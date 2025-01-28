@@ -136,6 +136,32 @@ button:disabled {
     -ms-user-select: text;
 }
 
+.footer {
+    text-align: center;
+    padding: 2rem 0;
+    margin-top: 2rem;
+}
+
+.github-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: #333;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.github-link:hover {
+    background-color: #f0f0f0;
+}
+
+.github-logo {
+    width: 24px;
+    height: 24px;
+}
+
 @media (max-width: 768px) {
     .grid {
         grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
