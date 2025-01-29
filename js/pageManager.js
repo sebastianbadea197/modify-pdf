@@ -100,4 +100,11 @@ class PageManager {
             pageIndex: parseInt(page.dataset.pageIndex)
         }));
     }
+
+    deletePage(pageDiv) {
+        pageDiv.remove();
+        this.selectedPages.delete(pageDiv);
+        this.updatePageOrder();
+        this.updatePageNumbers();
+    }
 }

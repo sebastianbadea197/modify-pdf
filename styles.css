@@ -49,6 +49,7 @@ body {
 }
 
 .page {
+    position: relative;
     border: 1px solid #dee2e6;
     padding: 1rem;
     text-align: center;
@@ -68,6 +69,29 @@ body {
     outline-offset: 2px;
 }
 
+.page-delete {
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    width: 1.5rem;
+    height: 1.5rem;
+    border: none;
+    background: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    line-height: 1;
+    color: #adb5bd;
+    transition: color 0.2s;
+    padding: 0;
+}
+
+.page-delete:hover {
+    color: #000000;
+}
+
 .page-number {
     margin-top: 0.75rem;
     color: #6c757d;
@@ -80,7 +104,7 @@ canvas {
     border-radius: 4px;
 }
 
-button {
+.controls button {
     background-color: #4CAF50;
     color: white;
     padding: 0.75rem 1.5rem;
@@ -92,11 +116,11 @@ button {
     margin-right: 1rem;
 }
 
-button:hover {
+.controls button:hover {
     background-color: #45a049;
 }
 
-button:disabled {
+.controls button:disabled {
     background-color: #cccccc;
     cursor: not-allowed;
 }

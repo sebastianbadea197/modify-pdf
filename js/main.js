@@ -70,11 +70,21 @@ class PDFMergerApp {
         pageDiv.dataset.pageIndex = pageIndex;
         pageDiv.dataset.type = type;
 
+        const deleteButton = document.createElement('button');
+        deleteButton.className = 'page-delete';
+        deleteButton.innerHTML = '×';
+        deleteButton.title = 'Delete page';
+        deleteButton.onclick = (e) => {
+            e.stopPropagation();
+            this.pageManager.deletePage(pageDiv);
+        };
+
         const pageNumber = document.createElement('div');
         pageNumber.className = 'page-number';
         pageNumber.textContent = `Page ${pageCount}`;
 
         pageDiv.appendChild(canvas);
+        pageDiv.appendChild(deleteButton);
         pageDiv.appendChild(pageNumber);
         pagesGrid.appendChild(pageDiv);
     }
