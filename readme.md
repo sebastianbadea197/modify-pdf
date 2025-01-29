@@ -15,5 +15,4 @@ Just a small tool to handle multiple pdf files entirely from the browser.
 
 # TODO:
 
-1. add drag-and-drop functionality
-2. rotate, crop (?) functionality
+1. rotate, crop (?) functionality
