@@ -23,7 +23,11 @@ class PageManager {
     setupSortable() {
         new Sortable(this.container, {
             animation: 150,
-            onEnd: () => this.updatePageOrder()
+            onEnd: () => {
+                console.log("Page order changed");
+                this.updatePageOrder();
+                this.updatePageNumbers();
+            }
         });
     }
 
@@ -99,6 +103,8 @@ class PageManager {
             fileIndex: parseInt(page.dataset.fileIndex),
             pageIndex: parseInt(page.dataset.pageIndex)
         }));
+        
+        console.log('Page order updated:', this.pageOrder);
     }
 
     deletePage(pageDiv) {

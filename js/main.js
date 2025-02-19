@@ -12,12 +12,17 @@ class PDFMergerApp {
         const downloadBtn = document.getElementById('downloadBtn');
 
         fileInput.addEventListener('change', (e) => this.fileManager.addFiles(e.target.files));
-        mergeButton.addEventListener('click', () => this.displayDocuments());
+        mergeButton.addEventListener('click', () => {
+            console.log('Display Documents clicked. Current file order:',
+                this.fileManager.selectedFiles.map(f => f.name));
+            this.displayDocuments();
+        });
         downloadBtn.addEventListener('click', () => this.createPDF());
 
         this.fileManager.onFileChange(files => {
-            this.fileManager.updateFileList();
             mergeButton.disabled = files.length < 1;
+            console.log('Files changed. Current order:', 
+                files.map(f => f.name));
         });
     }
 
@@ -28,12 +33,18 @@ class PDFMergerApp {
             pagesGrid.innerHTML = '';
             let pageCount = 0;
 
-            for (let fileIndex = 0; fileIndex < this.fileManager.selectedFiles.length; fileIndex++) {
-                const file = this.fileManager.selectedFiles[fileIndex];
+            // Log the order we'll process files in
+            console.log('Processing files in order:', 
+                this.fileManager.selectedFiles.map(f => f.name));
+
+            for (let i = 0; i < this.fileManager.selectedFiles.length; i++) {
+                const file = this.fileManager.selectedFiles[i];
+                console.log(`Processing file ${i}: ${file.name}`);
+                
                 if (file.type === 'application/pdf') {
-                    await this.processPDF(file, fileIndex, pageCount);
+                    await this.processPDF(file, i, pageCount);
                 } else if (file.type.startsWith('image/')) {
-                    await this.processImage(file, fileIndex, pageCount);
+                    await this.processImage(file, i, pageCount);
                 }
             }
 
