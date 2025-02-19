@@ -2,53 +2,122 @@ class FileManager {
     constructor() {
         this.selectedFiles = [];
         this.fileChangeCallbacks = [];
+        this.sortableInstance = null;
+        this.dragging = false;
+        
         this.setupDragDrop();
         
-        // Instead of using Sortable events, implement our own reordering
-        this.implementManualReordering();
+        if (document.readyState === 'complete') {
+            this.initSortable();
+        } else {
+            window.addEventListener('load', () => {
+                this.initSortable();
+            });
+        }
     }
 
-    implementManualReordering() {
+    initSortable() {
         const fileList = document.getElementById('fileList');
         
-        // Initialize Sortable but don't rely on its events
-        Sortable.create(fileList, {
-            animation: 150,
-            handle: '.drag-handle',
-            ghostClass: 'sortable-ghost'
-        });
+        if (!fileList || this.dragging) {
+            return;
+        }
         
-        // Add a manual reorder button for each file
-        fileList.addEventListener('click', (e) => {
-            // Handle move up button
-            if (e.target.classList.contains('move-up')) {
-                const fileItem = e.target.closest('.file-item');
-                const index = parseInt(fileItem.dataset.index);
-                if (index > 0) {
-                    // Swap with previous file
-                    [this.selectedFiles[index], this.selectedFiles[index-1]] = 
-                    [this.selectedFiles[index-1], this.selectedFiles[index]];
-                    this.updateFileList();
-                    this.notifyFileChange();
-                }
+        try {
+            if (this.sortableInstance) {
+                this.sortableInstance.destroy();
+                this.sortableInstance = null;
             }
-            // Handle move down button
-            else if (e.target.classList.contains('move-down')) {
-                const fileItem = e.target.closest('.file-item');
-                const index = parseInt(fileItem.dataset.index);
-                if (index < this.selectedFiles.length - 1) {
-                    // Swap with next file
-                    [this.selectedFiles[index], this.selectedFiles[index+1]] = 
-                    [this.selectedFiles[index+1], this.selectedFiles[index]];
-                    this.updateFileList();
-                    this.notifyFileChange();
+            
+            this.sortableInstance = Sortable.create(fileList, {
+                animation: 150,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                delay: 150,
+                delayOnTouchOnly: true,
+                chosenClass: 'sortable-chosen',
+                onStart: () => {
+                    this.dragging = true;
+                },
+                onEnd: (evt) => {
+                    if (typeof evt.oldIndex === 'number' && 
+                        typeof evt.newIndex === 'number' &&
+                        evt.oldIndex !== evt.newIndex &&
+                        evt.oldIndex >= 0 && 
+                        evt.newIndex >= 0 &&
+                        evt.oldIndex < this.selectedFiles.length &&
+                        evt.newIndex < this.selectedFiles.length) {
+                        
+                        setTimeout(() => {
+                            this.handleSortableReorder(evt.oldIndex, evt.newIndex);
+                            this.dragging = false;
+                        }, 50);
+                    } else {
+                        this.dragging = false;
+                    }
                 }
+            });
+        } catch (error) {
+            this.dragging = false;
+        }
+    }
+    
+    handleSortableReorder(oldIndex, newIndex) {
+        try {
+            const files = [...this.selectedFiles];
+            const movedItem = files[oldIndex];
+            
+            if (!movedItem) {
+                return;
             }
+            
+            files.splice(oldIndex, 1);
+            files.splice(newIndex, 0, movedItem);
+            this.selectedFiles = files;
+            this.updateFileListNoDrag();
+            this.notifyFileChange();
+        } catch (error) {
+            console.error("Error during reordering:", error);
+        }
+    }
+
+    updateFileListNoDrag() {
+        const fileList = document.getElementById('fileList');
+        
+        if (!fileList) {
+            return;
+        }
+        
+        fileList.innerHTML = '';
+        
+        this.selectedFiles.forEach((file, index) => {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.dataset.index = index;
+            
+            fileItem.innerHTML = `
+                <div class="file-item-content">
+                    <span class="file-name">${file.name}</span>
+                    <button class="remove-file" type="button" data-index="${index}">×</button>
+                </div>
+            `;
+
+            const removeButton = fileItem.querySelector('.remove-file');
+            removeButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.removeFile(parseInt(e.target.dataset.index));
+            });
+
+            fileList.appendChild(fileItem);
         });
     }
 
     setupDragDrop() {
         const fileList = document.getElementById('fileList');
+        
+        if (!fileList) {
+            return;
+        }
         
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             fileList.addEventListener(eventName, (e) => {
@@ -66,7 +135,6 @@ class FileManager {
             this.addFiles(droppedFiles);
         });
 
-        // Prevent defaults for the document
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             document.addEventListener(eventName, (e) => {
                 e.preventDefault();
@@ -86,6 +154,10 @@ class FileManager {
     }
 
     removeFile(index) {
+        if (this.dragging) {
+            return;
+        }
+        
         this.selectedFiles.splice(index, 1);
         this.notifyFileChange();
         this.updateFileList();
@@ -94,7 +166,25 @@ class FileManager {
     }
 
     updateFileList() {
+        if (this.dragging) {
+            return;
+        }
+        
         const fileList = document.getElementById('fileList');
+        
+        if (!fileList) {
+            return;
+        }
+        
+        if (this.sortableInstance) {
+            try {
+                this.sortableInstance.destroy();
+            } catch (error) {
+                console.error("Error destroying Sortable:", error);
+            }
+            this.sortableInstance = null;
+        }
+        
         fileList.innerHTML = '';
         
         this.selectedFiles.forEach((file, index) => {
@@ -104,17 +194,11 @@ class FileManager {
             
             fileItem.innerHTML = `
                 <div class="file-item-content">
-                    <span class="drag-handle">☰</span>
                     <span class="file-name">${file.name}</span>
-                    <div class="file-controls">
-                        <button class="move-up" type="button" ${index === 0 ? 'disabled' : ''}>▲</button>
-                        <button class="move-down" type="button" ${index === this.selectedFiles.length - 1 ? 'disabled' : ''}>▼</button>
-                        <button class="remove-file" type="button" data-index="${index}">×</button>
-                    </div>
+                    <button class="remove-file" type="button" data-index="${index}">×</button>
                 </div>
             `;
 
-            // Add click handler to the remove button
             const removeButton = fileItem.querySelector('.remove-file');
             removeButton.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -124,8 +208,9 @@ class FileManager {
             fileList.appendChild(fileItem);
         });
         
-        // Log the current order
-        console.log('Current file order:', this.selectedFiles.map(f => f.name));
+        setTimeout(() => {
+            this.initSortable();
+        }, 100);
     }
 
     onFileChange(callback) {
